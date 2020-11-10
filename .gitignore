@@ -1,0 +1,4 @@
+build
+blobs
+*.o
+*.ko
