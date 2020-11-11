@@ -49,7 +49,7 @@ const char *NSM_VQ_NAME = "nsm.vq.0";
 
 /* NSM device ID */
 static const struct virtio_device_id nsm_id_table[] = {
-	{ 0xEC200001, VIRTIO_DEV_ANY_ID },
+	{ 33, VIRTIO_DEV_ANY_ID },
 	{ 0 },
 };
 
