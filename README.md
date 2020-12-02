@@ -9,7 +9,7 @@ keys. Instructions are available [here](https://www.kernel.org/category/signatur
 
 For Debian / Ubuntu systems, install build prequisites:
 ```
-sudo apt-get install build-essential libncurses-dev bison flex libssl-dev libelf-dev
+sudo apt-get install build-essential libncurses-dev bison flex libssl-dev libelf-dev gnupg2
 ```
 
 For Amazon Linux 2 / Fedora / RHEL / CentOS install build prequisites:
