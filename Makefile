@@ -5,8 +5,8 @@ BUILDDIR ?= $(abspath build)
 OUTDIR   ?= $(abspath blobs)
 
 .PHONY: all blobs
-all: blobs 
-blobs: $(OUTDIR)/nsm.ko $(OUTDIR)/bzImage
+all: blobs
+blobs: $(OUTDIR)/nsm.ko $(OUTDIR)/bzImage $(OUTDIR)/init
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -40,6 +40,11 @@ $(OUTDIR)/nsm.ko: $(BUILDDIR)/bzImage $(OUTDIR)
 	make -C $(BUILDDIR)/linux M=$(PWD)/nsm-driver
 	cp $(PWD)/nsm-driver/nsm.ko $(OUTDIR)/nsm.ko
 
+$(OUTDIR)/init:  $(OUTDIR)
+	make -C $(PWD)/init
+	cp $(PWD)/init/init $(OUTDIR)
+
 clean:
 	make -C $(BUILDDIR)/linux M=$(PWD)/nsm-driver clean
+	make -C $(PWD)/init clean
 	rm -rf $(BUILDDIR)/*
