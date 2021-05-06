@@ -21,8 +21,9 @@ $(BUILDDIR)/linux.sign: linux-url $(BUILDDIR)
 	curl -L $$(tail -n1 linux-url) > $@
 
 $(BUILDDIR)/linux: $(BUILDDIR)/linux.tar $(BUILDDIR)/linux.sign
+	mkdir -p $(BUILDDIR)/linux
 	gpg2 --verify  $(BUILDDIR)/linux.sign $(BUILDDIR)/linux.tar
-	tar -xf $(BUILDDIR)/linux.tar --one-top-level=linux --strip-components 1 -C $(BUILDDIR)
+	tar -xf $(BUILDDIR)/linux.tar --strip-components 1 -C $(BUILDDIR)/linux
 
 $(BUILDDIR)/linux/.config: $(BUILDDIR)/linux microvm-kernel-config-x86_64
 	make KCONFIG_ALLCONFIG=$$(pwd)/microvm-kernel-config-x86_64 -C $(BUILDDIR)/linux allnoconfig
