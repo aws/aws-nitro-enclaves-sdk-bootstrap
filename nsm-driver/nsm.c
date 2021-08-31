@@ -21,6 +21,7 @@
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/interrupt.h>
+#include <linux/hw_random.h>
 #include <linux/miscdevice.h>
 #include <linux/module.h>
 #include <linux/mutex.h>
@@ -458,6 +459,210 @@ static struct miscdevice nsm_driver_miscdevice = {
 	.mode	= 0666
 };
 
+#define CBOR_TYPE_ARRAY 0x2
+#define CBOR_HEADER_SIZE_SHORT 1
+
+#define CBOR_SHORT_SIZE_MAX_VALUE 23
+#define CBOR_LONG_SIZE_U8  24
+#define CBOR_LONG_SIZE_U16 25
+#define CBOR_LONG_SIZE_U32 26
+#define CBOR_LONG_SIZE_U64 27
+
+#define CBOR_HEADER_SIZE_U8  (CBOR_HEADER_SIZE_SHORT + sizeof(uint8_t))
+#define CBOR_HEADER_SIZE_U16 (CBOR_HEADER_SIZE_SHORT + sizeof(uint16_t))
+#define CBOR_HEADER_SIZE_U32 (CBOR_HEADER_SIZE_SHORT + sizeof(uint32_t))
+#define CBOR_HEADER_SIZE_U64 (CBOR_HEADER_SIZE_SHORT + sizeof(uint64_t))
+
+static bool cbor_object_is_array(const uint8_t *cbor_object, size_t cbor_object_size)
+{
+	uint8_t cbor_type;
+
+	if (cbor_object_size == 0 || cbor_object == NULL)
+		return false;
+
+	/* The object type is defined by the first 3 bits in the object header */
+	cbor_type = (cbor_object[0] >> 5) & 0x7;
+	return cbor_type == CBOR_TYPE_ARRAY;
+}
+
+static int cbor_object_get_array(uint8_t *cbor_object, size_t cbor_object_size, uint8_t **cbor_array)
+{
+	uint8_t cbor_short_size;
+	uint64_t array_len;
+	uint64_t array_offset;
+
+	if (!cbor_object_is_array(cbor_object, cbor_object_size))
+		return -EFAULT;
+
+	if (cbor_array == NULL)
+		return -EFAULT;
+
+	cbor_short_size = (cbor_object[0] & 0x1F);
+
+	/* Decoding byte array length */
+	/* In short field encoding, the object header is 1 byte long and
+	 * contains the type on the 3 MSB and the length on the LSB.
+	 * If the length in the LSB is larger than 23, then the object
+	 * uses long field encoding, and will contain the length over the
+	 * next bytes in the object, depending on the value:
+	 * 24 is u8, 25 is u16, 26 is u32 and 27 is u64.
+	 */
+	if (cbor_short_size <= CBOR_SHORT_SIZE_MAX_VALUE) {
+		/* short encoding */
+		array_len = cbor_short_size;
+		array_offset = CBOR_HEADER_SIZE_SHORT;
+	} else if (cbor_short_size == CBOR_LONG_SIZE_U8) {
+		if (cbor_object_size < CBOR_HEADER_SIZE_U8)
+			return -EFAULT;
+		/* 1 byte */
+		array_len = cbor_object[1];
+		array_offset = CBOR_HEADER_SIZE_U8;
+	} else if (cbor_short_size == CBOR_LONG_SIZE_U16) {
+		if (cbor_object_size < CBOR_HEADER_SIZE_U16)
+			return -EFAULT;
+		/* 2 bytes */
+		array_len = cbor_object[1] << 8 | cbor_object[2];
+		array_offset = CBOR_HEADER_SIZE_U16;
+	} else if (cbor_short_size == CBOR_LONG_SIZE_U32) {
+		if (cbor_object_size < CBOR_HEADER_SIZE_U32)
+			return -EFAULT;
+		/* 4 bytes */
+		array_len = cbor_object[1] << 24 |
+			cbor_object[2] << 16 |
+			cbor_object[3] << 8  |
+			cbor_object[4];
+		array_offset = CBOR_HEADER_SIZE_U32;
+	} else if (cbor_short_size == CBOR_LONG_SIZE_U64) {
+		if (cbor_object_size < CBOR_HEADER_SIZE_U64)
+			return -EFAULT;
+		/* 8 bytes */
+		array_len = (uint64_t) cbor_object[1] << 56 |
+			  (uint64_t) cbor_object[2] << 48 |
+			  (uint64_t) cbor_object[3] << 40 |
+			  (uint64_t) cbor_object[4] << 32 |
+			  (uint64_t) cbor_object[5] << 24 |
+			  (uint64_t) cbor_object[6] << 16 |
+			  (uint64_t) cbor_object[7] << 8  |
+			  (uint64_t) cbor_object[8];
+		array_offset = CBOR_HEADER_SIZE_U64;
+	}
+
+	if (cbor_object_size < array_offset)
+		return -EFAULT;
+
+	if (cbor_object_size - array_offset < array_len)
+		return -EFAULT;
+
+	if (array_len > INT_MAX)
+		return -EFAULT;
+
+	*cbor_array = cbor_object + array_offset;
+	return array_len;
+}
+
+static int nsm_rng_read(struct hwrng *rng, void *data, size_t max, bool wait)
+{
+	int rc = 0;
+	uint8_t *resp_ptr = NULL;
+	uint64_t resp_len = 0;
+	uint8_t *rand_data = NULL;
+
+	struct nsm_kernel_message message;
+
+	/*
+	 * 69                          # text(9)
+	 *     47657452616E646F6D      # "GetRandom"
+	 */
+	const uint8_t request[] = { 0x69, 0x47, 0x65, 0x74, 0x52, 0x61, 0x6E, 0x64, 0x6F, 0x6D };
+
+	/*
+	 * A1                          # map(1)
+	 *     69                      # text(9) - Name of field
+	 *         47657452616E646F6D  # "GetRandom"
+	 * A1                          # map(1) - The field itself
+	 *     66                      # text(6)
+	 *         72616E646F6D        # "random"
+	 *	# The rest of the response should be a byte array
+	 */
+	const uint8_t response[] = { 0xA1, 0x69, 0x47, 0x65, 0x74, 0x52, 0x61, 0x6E, 0x64,
+		0x6F, 0x6D, 0xA1, 0x66, 0x72, 0x61, 0x6E, 0x64, 0x6F, 0x6D };
+
+	if (wait == true) {
+		mutex_lock(&nsm_lock);
+	} else {
+		if (mutex_trylock(&nsm_lock) == 0)
+			return -EBUSY;
+	}
+
+	/* The kernel message structure must be cleared */
+	memset(&message, 0, sizeof(message));
+
+	/* Set request message */
+	message.request.iov_len = sizeof(request);
+	message.request.iov_base = kmalloc(message.request.iov_len, GFP_KERNEL);
+	if (message.request.iov_base == NULL)
+		goto out;
+	memcpy(message.request.iov_base, request, sizeof(request));
+
+	/* Allocate space for response */
+	message.response.iov_len = NSM_RESPONSE_MAX_SIZE;
+	message.response.iov_base = kmalloc(message.response.iov_len, GFP_KERNEL);
+	if (message.response.iov_base == NULL)
+		goto out;
+
+	/* Send/receive message */
+	rc = nsm_communicate_with_device(&message);
+	if (rc != 0)
+		goto out;
+
+	resp_ptr = (uint8_t *) message.response.iov_base;
+	resp_len = message.response.iov_len;
+
+	if (resp_len < sizeof(response) + 1) {
+		pr_err("NSM RNG: Received short response from NSM: Possible error message or invalid response");
+		rc = -EFAULT;
+		goto out;
+	}
+
+	if (memcmp(resp_ptr, response, sizeof(response)) != 0) {
+		pr_err("NSM RNG: Invalid response header: Possible error message or invalid response");
+		rc = -EFAULT;
+		goto out;
+	}
+
+	resp_ptr += sizeof(response);
+	resp_len -= sizeof(response);
+
+	if (!cbor_object_is_array(resp_ptr, resp_len)) {
+		/* not a byte array */
+		pr_err("NSM RNG: Invalid response type: Expecting a byte array response");
+		rc = -EFAULT;
+		goto out;
+	}
+
+	rc = cbor_object_get_array(resp_ptr, resp_len, &rand_data);
+	if (rc < 0) {
+		pr_err("NSM RNG: Invalid CBOR encoding\n");
+		goto out;
+	}
+
+	max = max > INT_MAX ? INT_MAX : max;
+	rc = rc > max ? max : rc;
+	memcpy(data, rand_data, rc);
+
+	pr_info("NSM RNG: returning rand bytes = %d\n", rc);
+out:
+	message_delete(&message);
+	mutex_unlock(&nsm_lock);
+	return rc;
+}
+
+static struct hwrng nsm_hwrng = {
+	.read = nsm_rng_read,
+	.name = "nsm-hwrng",
+	.quality = 1000,
+};
+
 static int __init nsm_driver_init(void)
 {
 	int rc;
@@ -467,26 +672,43 @@ static int __init nsm_driver_init(void)
 
 	rc = misc_register(&nsm_driver_miscdevice);
 
-	if (rc)
+	if (rc) {
 		pr_err("NSM driver initialization error: %d.\n", rc);
-	else
-		pr_debug("NSM driver version = 10.%d.\n",
-			NSM_DEV_MINOR);
+		return rc;
+	}
+
+	pr_debug("NSM driver version = 10.%d.\n",
+		NSM_DEV_MINOR);
 
 	nsm_dev = NULL;
 	rc = register_virtio_driver(&virtio_nsm_driver);
 	if (rc) {
-		pr_err("NSM device initialization error: %d.\n", rc);
-		misc_deregister(&nsm_driver_miscdevice);
-	} else
-		pr_debug("NSM device ID = %X.\n",
-			virtio_nsm_driver.id_table[0].device);
+		pr_err("NSM driver initialization error: %d.\n", rc);
+		goto err_unreg_misc;
+	}
 
+	rc = hwrng_register(&nsm_hwrng);
+	if (rc) {
+		pr_err("NSM RNG initialization error: %d.\n", rc);
+		goto err_unreg_hwrng;
+	}
+
+	pr_debug("NSM device ID = %X.\n",
+	    virtio_nsm_driver.id_table[0].device);
+
+	return rc;
+
+err_unreg_hwrng:
+	hwrng_unregister(&nsm_hwrng);
+err_unreg_misc:
+	misc_deregister(&nsm_driver_miscdevice);
+	nsm_dev = NULL;
 	return rc;
 }
 
 static void __exit nsm_driver_exit(void)
 {
+	hwrng_unregister(&nsm_hwrng);
 	unregister_virtio_driver(&virtio_nsm_driver);
 	misc_deregister(&nsm_driver_miscdevice);
 	mutex_destroy(&nsm_lock);
