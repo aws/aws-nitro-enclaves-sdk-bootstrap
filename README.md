@@ -19,6 +19,17 @@ For Amazon Linux 2 / Fedora / RHEL / CentOS install build prequisites:
 sudo yum group install "Development Tools" 
 ```
 
+## Build
+
+The project can be built inside a Docker container to avoid installing toolchains and other packages
+on your local device.
+
+For example, to build for aarch64 run:
+
+```
+docker build --build-arg BUILD_ARCH=aarch64 .
+```
+
 ## Security
 
 See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
