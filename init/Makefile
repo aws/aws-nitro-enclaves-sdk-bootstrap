@@ -22,4 +22,4 @@ init: init.c
 	$(CROSS_COMPILE)strip --strip-all $@
 
 clean:
-	rm init
+	rm -f init
