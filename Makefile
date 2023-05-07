@@ -30,7 +30,7 @@ endif
 
 .PHONY: all blobs
 all: blobs
-blobs: $(OUTDIR)/nsm.ko $(OUTDIR)/$(KERN_IMAGE) $(OUTDIR)/init
+blobs: $(OUTDIR)/nsm.ko $(OUTDIR)/$(KERN_IMAGE) $(OUTDIR)/$(KERN_IMAGE).config $(OUTDIR)/init
 
 $(BUILDDIR):
 	mkdir -p $(BUILDDIR)
@@ -51,6 +51,9 @@ $(BUILDDIR)/linux: $(BUILDDIR)/linux.tar $(BUILDDIR)/linux.sign
 
 $(BUILDDIR)/linux/.config: $(BUILDDIR)/linux $(CONFIG)
 	make ARCH=$(ARCH) KCONFIG_ALLCONFIG=$$(pwd)/$(CONFIG) -C $(BUILDDIR)/linux allnoconfig
+
+$(OUTDIR)/$(KERN_IMAGE).config: $(BUILDDIR)/linux/.config
+	cp $(BUILDDIR)/linux/.config $(OUTDIR)/$(KERN_IMAGE).config
 
 $(BUILDDIR)/$(KERN_IMAGE): $(BUILDDIR)/linux $(BUILDDIR)/linux/.config
 	make -j$(nprocs) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(BUILDDIR)/linux
