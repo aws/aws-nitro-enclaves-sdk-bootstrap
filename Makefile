@@ -53,7 +53,7 @@ $(BUILDDIR)/linux/.config: $(BUILDDIR)/linux $(CONFIG)
 	make ARCH=$(ARCH) KCONFIG_ALLCONFIG=$$(pwd)/$(CONFIG) -C $(BUILDDIR)/linux allnoconfig
 
 $(BUILDDIR)/$(KERN_IMAGE): $(BUILDDIR)/linux $(BUILDDIR)/linux/.config
-	make -j$(nprocs) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(BUILDDIR)/linux
+	make -j$(nprocs) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(BUILDDIR)/linux $(KERN_IMAGE)
 	cp $(BUILDDIR)/linux/arch/$(ARCH)/boot/$(KERN_IMAGE) $@
 
 $(OUTDIR)/$(KERN_IMAGE): $(BUILDDIR)/$(KERN_IMAGE) $(OUTDIR)
