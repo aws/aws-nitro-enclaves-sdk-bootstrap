@@ -56,7 +56,7 @@ $(OUTDIR)/$(KERN_IMAGE).config: $(BUILDDIR)/linux/.config
 	cp $(BUILDDIR)/linux/.config $(OUTDIR)/$(KERN_IMAGE).config
 
 $(BUILDDIR)/$(KERN_IMAGE): $(BUILDDIR)/linux $(BUILDDIR)/linux/.config
-	make -j$(nprocs) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(BUILDDIR)/linux $(KERN_IMAGE)
+	make -j$(shell nproc) ARCH=$(ARCH) CROSS_COMPILE=$(CROSS_COMPILE) -C $(BUILDDIR)/linux $(KERN_IMAGE)
 	cp $(BUILDDIR)/linux/arch/$(ARCH)/boot/$(KERN_IMAGE) $@
 
 $(OUTDIR)/$(KERN_IMAGE): $(BUILDDIR)/$(KERN_IMAGE) $(OUTDIR)
