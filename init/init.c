@@ -425,8 +425,16 @@ int main() {
     unlink("/env");
     unlink("/cmd");
 
+    // Turn /rootfs into a mount point so it can be used with mount --move
+    die_on(mount("/rootfs", "/rootfs", NULL, MS_BIND, NULL) != 0,
+        "mount --bind /rootfs /rootfs");
     die_on(chdir("/rootfs") != 0, "chdir /rootfs");
-    die_on(chroot("/rootfs") != 0, "chroot /rootfs");
+    // Change the root directory of the mount namespace to the root directory
+    // by overmounting / with /rootfs
+    die_on(mount(".", "/", NULL, MS_MOVE, NULL) != 0,
+        "mount --move . /");
+    die_on(chroot(".") != 0, "chroot .");
+    die_on(chdir("/") != 0, "chdir /");
 
     // At this point, we need to make sure the container /dev is initialized
     // as well.
