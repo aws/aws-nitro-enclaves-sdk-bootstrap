@@ -232,7 +232,7 @@ void init_cgroups() {
     }
     for (;;) {
         static const char base_path[] = "/sys/fs/cgroup/";
-        char path[sizeof(base_path) - 1 + 64];
+        char path[sizeof(base_path) - 1 + 65];
         char* name = path + sizeof(base_path) - 1;
         int hier, groups, enabled;
         int r = fscanf(f, "%64s %d %d %d\n", name, &hier, &groups, &enabled);
