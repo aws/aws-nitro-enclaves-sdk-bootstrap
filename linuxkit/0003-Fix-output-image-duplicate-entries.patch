@@ -1,0 +1,32 @@
+From 16d8a78e3b72509ccbe15f0e5e22ff44fe249edf Mon Sep 17 00:00:00 2001
+From: Eugene Koira <eugkoira@amazon.com>
+Date: Mon, 21 Feb 2022 14:57:10 +0000
+Subject: [PATCH 3/3] Fix output image duplicate entries
+
+Quick fix to avoid duplicate entries for files that require replacement when creating output image
+
+Signed-off-by: Eugene Koira <eugkoira@amazon.com>
+---
+ src/cmd/linuxkit/moby/image.go | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/src/cmd/linuxkit/moby/image.go b/src/cmd/linuxkit/moby/image.go
+index 7baefe0ec..024c60121 100644
+--- a/src/cmd/linuxkit/moby/image.go
++++ b/src/cmd/linuxkit/moby/image.go
+@@ -223,6 +223,12 @@ func ImageTar(ref *reference.Spec, prefix string, tw tarWriter, resolv string, o
+ 				return err
+ 			}
+ 		} else if replace[hdr.Name] != "" {
++			// TODO: quick fix to avoid duplicate entries for replaced items
++			// as they are also "touched" but with different content
++			if _, ok := touch[hdr.Name]; ok {
++				touchFound[hdr.Name] = true
++			}
++
+ 			if hdr.Name != "etc/resolv.conf" || resolv == "" {
+ 				contents := replace[hdr.Name]
+ 				hdr.Size = int64(len(contents))
+-- 
+2.40.1
+
