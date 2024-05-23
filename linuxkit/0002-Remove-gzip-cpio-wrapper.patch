@@ -1,0 +1,65 @@
+From 9dc058ff28e9ea1d506b40b5f1c0e756f9f72702 Mon Sep 17 00:00:00 2001
+From: Eugene Koira <eugkoira@amazon.com>
+Date: Mon, 21 Feb 2022 14:48:51 +0000
+Subject: [PATCH 2/3] Remove gzip cpio wrapper
+
+The output image is not gzipped anymore. This is needed to avoid certain
+size limitations present in the linux kernel.
+
+Signed-off-by: Eugene Koira <eugkoira@amazon.com>
+---
+ src/cmd/linuxkit/initrd/initrd.go | 11 ++---------
+ 1 file changed, 2 insertions(+), 9 deletions(-)
+
+diff --git a/src/cmd/linuxkit/initrd/initrd.go b/src/cmd/linuxkit/initrd/initrd.go
+index bfdeb7d27..c3dc2d7e6 100644
+--- a/src/cmd/linuxkit/initrd/initrd.go
++++ b/src/cmd/linuxkit/initrd/initrd.go
+@@ -3,7 +3,6 @@ package initrd
+ import (
+ 	"archive/tar"
+ 	"bytes"
+-	"compress/gzip"
+ 	"errors"
+ 	"io"
+ 	"io/ioutil"
+@@ -18,7 +17,6 @@ import (
+ // This is a compressed cpio archive, zero padded to 4 bytes
+ type Writer struct {
+ 	pw *pad4.Writer
+-	gw *gzip.Writer
+ 	cw *cpio.Writer
+ }
+ 
+@@ -155,8 +153,7 @@ func CopySplitTar(w *Writer, r *tar.Reader) (kernel []byte, cmdline string, ucod
+ func NewWriter(w io.Writer) *Writer {
+ 	initrd := new(Writer)
+ 	initrd.pw = pad4.NewWriter(w)
+-	initrd.gw = gzip.NewWriter(initrd.pw)
+-	initrd.cw = cpio.NewWriter(initrd.gw)
++	initrd.cw = cpio.NewWriter(initrd.pw)
+ 
+ 	return initrd
+ }
+@@ -174,17 +171,13 @@ func (w *Writer) Write(b []byte) (n int, e error) {
+ // Close closes the writer
+ func (w *Writer) Close() error {
+ 	err1 := w.cw.Close()
+-	err2 := w.gw.Close()
+-	err3 := w.pw.Close()
++	err2 := w.pw.Close()
+ 	if err1 != nil {
+ 		return err1
+ 	}
+ 	if err2 != nil {
+ 		return err2
+ 	}
+-	if err3 != nil {
+-		return err3
+-	}
+ 	return nil
+ }
+ 
+-- 
+2.40.1
+
