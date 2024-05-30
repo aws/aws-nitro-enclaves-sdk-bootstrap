@@ -6,15 +6,13 @@
 }:
 pkgs.buildGoModule rec {
   pname = "linuxkit";
-  version = "0.8";
-  gitcommit = "b710224cdf9a8425a7129cdcb84fc1af00f926d7";
+  version = "1.2.0";
 
   src = pkgs.fetchFromGitHub {
     owner = "linuxkit";
     repo = "linuxkit";
-#    rev = "v${version}";
-    rev = "${gitcommit}";
-    sha256 = "sha256-UqPX+r3by7v+PL+/xUiSZVsB7EO7VUr3aDfVIhQDEgY=";
+    rev = "v${version}";
+    sha256 = "sha256-PrHGIP74mDt+mJDRaCsroiJ4QEW4/tzgsZI2JlZ8TEA=";
   };
 
   buildInputs = with pkgs; [
@@ -41,8 +39,8 @@ pkgs.buildGoModule rec {
   ];
 
   patches = [
-    ./0001-Add-prefix-build-option.patch
-    ./0002-Remove-gzip-cpio-wrapper.patch
+    ./0001-build-Allow-to-ad-a-directory-prefix-when-unpacking-.patch
+    ./0002-output-Add-new-type-kernel-initrd-nogz.patch
     ./0003-Fix-output-image-duplicate-entries.patch
   ];
 

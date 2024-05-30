@@ -1,0 +1,102 @@
+From eae487322b8796673615e913702888ec77e6a8c4 Mon Sep 17 00:00:00 2001
+From: Leonard Foerster <foersleo@amazon.com>
+Date: Wed, 29 May 2024 12:37:32 +0000
+Subject: [PATCH] output: Add new type kernel+initrd-nogz
+
+Add a new output type to generate initrd files which are uncompressed
+cpio. The linux boot protocol makes the compression of the cpio archives
+in initrd/initramfs optional.
+
+Having uncompressed cpio in the initrd allows to use bigger initrd than
+the compressed case as no extra memory is needed to decompress the
+initrd parts. This also allows for better estimation of how much memory
+a system would need to use a specific initrd.
+
+Signed-off-by: Leonard Foerster <foersleo@amazon.com>
+---
+ src/cmd/linuxkit/initrd/initrd.go | 17 +++++++++++++----
+ src/cmd/linuxkit/moby/output.go   | 17 ++++++++++++++++-
+ 2 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/src/cmd/linuxkit/initrd/initrd.go b/src/cmd/linuxkit/initrd/initrd.go
+index 4421d6730..0760d8b55 100644
+--- a/src/cmd/linuxkit/initrd/initrd.go
++++ b/src/cmd/linuxkit/initrd/initrd.go
+@@ -15,6 +15,7 @@ import (
+ // Writer is an io.WriteCloser that writes to an initrd
+ // This is a compressed cpio archive, zero padded to 4 bytes
+ type Writer struct {
++	enable_gz bool
+ 	gw *gzip.Writer
+ 	cw *cpio.Writer
+ }
+@@ -130,10 +131,15 @@ func CopySplitTar(w *Writer, r *tar.Reader) (kernel []byte, cmdline string, ucod
+ }
+ 
+ // NewWriter creates a writer that will output an initrd stream
+-func NewWriter(w io.Writer) *Writer {
++func NewWriter(w io.Writer, enable_gz bool) *Writer {
+ 	initrd := new(Writer)
+-	initrd.gw = gzip.NewWriter(w)
+-	initrd.cw = cpio.NewWriter(initrd.gw)
++	initrd.enable_gz = enable_gz
++	if initrd.enable_gz {
++		initrd.gw = gzip.NewWriter(w)
++		initrd.cw = cpio.NewWriter(initrd.gw)
++	} else {
++		initrd.cw = cpio.NewWriter(w)
++	}
+ 
+ 	return initrd
+ }
+@@ -151,7 +157,10 @@ func (w *Writer) Write(b []byte) (n int, e error) {
+ // Close closes the writer
+ func (w *Writer) Close() error {
+ 	err1 := w.cw.Close()
+-	err2 := w.gw.Close()
++	var err2 error = nil
++	if w.enable_gz {
++		err2 = w.gw.Close()
++	}
+ 	if err1 != nil {
+ 		return err1
+ 	}
+diff --git a/src/cmd/linuxkit/moby/output.go b/src/cmd/linuxkit/moby/output.go
+index 2719e0266..8e55372f5 100644
+--- a/src/cmd/linuxkit/moby/output.go
++++ b/src/cmd/linuxkit/moby/output.go
+@@ -36,6 +36,17 @@ var outFuns = map[string]func(base string, ir io.Reader, size int, arch string)
+ 		}
+ 		return nil
+ 	},
++	"kernel+initrd-nogz": func(base string, image io.Reader, size int, arch string) error {
++		kernel, initrd, cmdline, ucode, err := tarToInitrdPickGZ(image, false)
++		if err != nil {
++			return fmt.Errorf("Error converting to initrd: %v", err)
++		}
++		err = outputKernelInitrd(base, kernel, initrd, cmdline, ucode)
++		if err != nil {
++			return fmt.Errorf("Error writing kernel+initrd-nogz output: %v", err)
++		}
++		return nil
++	},
+ 	"tar-kernel-initrd": func(base string, image io.Reader, size int, arch string) error {
+ 		kernel, initrd, cmdline, ucode, err := tarToInitrd(image)
+ 		if err != nil {
+@@ -275,8 +286,12 @@ func Formats(base string, image string, formats []string, size int, arch, cache
+ }
+ 
+ func tarToInitrd(r io.Reader) ([]byte, []byte, string, []byte, error) {
++	return tarToInitrdPickGZ(r, true)
++}
++
++func tarToInitrdPickGZ(r io.Reader, enable_gz bool) ([]byte, []byte, string, []byte, error) {
+ 	w := new(bytes.Buffer)
+-	iw := initrd.NewWriter(w)
++	iw := initrd.NewWriter(w, enable_gz)
+ 	tr := tar.NewReader(r)
+ 	kernel, cmdline, ucode, err := initrd.CopySplitTar(iw, tr)
+ 	if err != nil {
+-- 
+2.40.1
+
