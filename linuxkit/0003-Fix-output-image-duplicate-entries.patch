@@ -1,7 +1,7 @@
-From 16d8a78e3b72509ccbe15f0e5e22ff44fe249edf Mon Sep 17 00:00:00 2001
+From f72a8a3ac20db392bf904c530bacf01fa04add75 Mon Sep 17 00:00:00 2001
 From: Eugene Koira <eugkoira@amazon.com>
 Date: Mon, 21 Feb 2022 14:57:10 +0000
-Subject: [PATCH 3/3] Fix output image duplicate entries
+Subject: [PATCH] Fix output image duplicate entries
 
 Quick fix to avoid duplicate entries for files that require replacement when creating output image
 
@@ -11,10 +11,10 @@ Signed-off-by: Eugene Koira <eugkoira@amazon.com>
  1 file changed, 6 insertions(+)
 
 diff --git a/src/cmd/linuxkit/moby/image.go b/src/cmd/linuxkit/moby/image.go
-index 7baefe0ec..024c60121 100644
+index c7818aa12..ec6dab406 100644
 --- a/src/cmd/linuxkit/moby/image.go
 +++ b/src/cmd/linuxkit/moby/image.go
-@@ -223,6 +223,12 @@ func ImageTar(ref *reference.Spec, prefix string, tw tarWriter, resolv string, o
+@@ -221,6 +221,12 @@ func ImageTar(ref *reference.Spec, prefix string, tw tarWriter, resolv string, o
  				return err
  			}
  		} else if replace[hdr.Name] != "" {
