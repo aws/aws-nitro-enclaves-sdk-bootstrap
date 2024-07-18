@@ -9,7 +9,7 @@ Linuxkit gets used by [aws-nitro-enclaves-cli](https://github.com/aws/aws-nitro-
 You can generate the patched linuxkit executable using [Nix](https://nixos.org/download.html) by running the command:
 
 ```
-nix-build
+nix-build linuxkit.nix
 ```
 
 This will produce `result/bin/linuxkit` executable.
