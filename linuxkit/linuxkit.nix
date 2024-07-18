@@ -1,7 +1,7 @@
 {
   pkgs ? import (fetchTarball {
-    url = "https://github.com/NixOS/nixpkgs/archive/refs/tags/23.05.tar.gz";
-    sha256 = "sha256:10wn0l08j9lgqcw8177nh2ljrnxdrpri7bp0g7nvrsn9rkawvlbf";
+    url = "https://github.com/NixOS/nixpkgs/archive/refs/tags/24.05.tar.gz";
+    sha256 = "sha256:1lr1h35prqkd1mkmzriwlpvxcb34kmhc9dnr48gkm8hh089hifmx";
   }) {}
 }:
 pkgs.buildGoModule rec {
@@ -26,8 +26,6 @@ pkgs.buildGoModule rec {
   vendorHash = null;
 
   modRoot = "./src/cmd/linuxkit";
-
-  CGO_ENABLED = 0;
 
   ldflags = [
     "-s"
