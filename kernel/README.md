@@ -9,7 +9,7 @@ These binaries are used by default by [aws-nitro-enclaves-cli](https://github.co
 You can generate the kernel, its final configuration file, and the compatible loadable module for the nitro secure module driver using [Nix](https://nixos.org/download.html) by running the command:
 
 ```
-nix-build
+nix-build kernel.nix
 ```
 
 This will produce the following results:
