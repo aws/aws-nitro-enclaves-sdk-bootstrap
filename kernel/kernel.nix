@@ -73,6 +73,9 @@ pkgs.stdenv.mkDerivation rec {
 
   buildPhase = ''
     patchShebangs ./scripts/ld-version.sh
+    export KBUILD_BUILD_TIMESTAMP="$(date -u -d @$SOURCE_DATE_EPOCH)"
+    export KBUILD_BUILD_USER="nixbuild"
+    export KBUILD_BUILD_HOST="nixbuilder"
     make olddefconfig ${kern_image} modules -j "$NIX_BUILD_CORES"
   '';
 
