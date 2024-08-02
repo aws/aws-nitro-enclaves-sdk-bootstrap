@@ -1,4 +1,4 @@
-From eae487322b8796673615e913702888ec77e6a8c4 Mon Sep 17 00:00:00 2001
+From 2ea08e8469f2b8ac796108fd094872c43cb0136c Mon Sep 17 00:00:00 2001
 From: Leonard Foerster <foersleo@amazon.com>
 Date: Wed, 29 May 2024 12:37:32 +0000
 Subject: [PATCH] output: Add new type kernel+initrd-nogz
@@ -14,8 +14,8 @@ a system would need to use a specific initrd.
 
 Signed-off-by: Leonard Foerster <foersleo@amazon.com>
 ---
- src/cmd/linuxkit/initrd/initrd.go | 17 +++++++++++++----
- src/cmd/linuxkit/moby/output.go   | 17 ++++++++++++++++-
+ src/cmd/linuxkit/initrd/initrd.go     | 17 +++++++++++++----
+ src/cmd/linuxkit/moby/build/output.go | 17 ++++++++++++++++-
  2 files changed, 29 insertions(+), 5 deletions(-)
 
 diff --git a/src/cmd/linuxkit/initrd/initrd.go b/src/cmd/linuxkit/initrd/initrd.go
@@ -61,10 +61,10 @@ index 4421d6730..0760d8b55 100644
  	if err1 != nil {
  		return err1
  	}
-diff --git a/src/cmd/linuxkit/moby/output.go b/src/cmd/linuxkit/moby/output.go
-index 2719e0266..8e55372f5 100644
---- a/src/cmd/linuxkit/moby/output.go
-+++ b/src/cmd/linuxkit/moby/output.go
+diff --git a/src/cmd/linuxkit/moby/build/output.go b/src/cmd/linuxkit/moby/build/output.go
+index fbacc8948..569bb30d6 100644
+--- a/src/cmd/linuxkit/moby/build/output.go
++++ b/src/cmd/linuxkit/moby/build/output.go
 @@ -36,6 +36,17 @@ var outFuns = map[string]func(base string, ir io.Reader, size int, arch string)
  		}
  		return nil
