@@ -1,4 +1,4 @@
-From 09dde1de079df387fe74a26873ea62712148a679 Mon Sep 17 00:00:00 2001
+From a87df285e0d5f75bf6d0e2711f4671a5d7495ec8 Mon Sep 17 00:00:00 2001
 From: Leonard Foerster <foersleo@amazon.com>
 Date: Wed, 29 May 2024 10:09:52 +0000
 Subject: [PATCH] build: Allow to ad a directory prefix when unpacking images
@@ -15,57 +15,57 @@ multiple initrd sections in an initramfs file.
 
 Signed-off-by: Leonard Foerster <foersleo@amazon.com>
 ---
- docs/yaml.md                    | 7 +++++++
- src/cmd/linuxkit/moby/build.go  | 4 ++--
- src/cmd/linuxkit/moby/config.go | 4 ++++
- src/cmd/linuxkit/moby/schema.go | 1 +
+ docs/yaml.md                         | 7 +++++++
+ src/cmd/linuxkit/moby/build/build.go | 4 ++--
+ src/cmd/linuxkit/moby/config.go      | 4 ++++
+ src/cmd/linuxkit/moby/schema.go      | 1 +
  4 files changed, 14 insertions(+), 2 deletions(-)
 
 diff --git a/docs/yaml.md b/docs/yaml.md
-index c04ad17e0..f7d0531c0 100644
+index b04e13e81..f70c7db68 100644
 --- a/docs/yaml.md
 +++ b/docs/yaml.md
-@@ -65,6 +65,13 @@ and set up basic filesystem mounts. in the case of a LinuxKit system. For ease o
+@@ -67,6 +67,13 @@ and set up basic filesystem mounts. in the case of a LinuxKit system. For ease o
  modification `runc` and `containerd` images, which just contain these programs are added here
  rather than bundled into the `init` container.
  
-+## `prefix`
++### `prefix`
 +
 +The `prefix` is a string that modifies the directory the images from `init` are unpacked to. This
 +can be used to employ a custom init process to setup and the basic kernel and facilities and then
 +switches rootfs to the one pointed to by the Docker image. It further allows to structure the root
 +file system when using multiple initrd assembling a bigger rootfs.
 +
- ## `onboot`
+ ### `onboot`
  
  The `onboot` section is a list of images. These images are run before any other
-diff --git a/src/cmd/linuxkit/moby/build.go b/src/cmd/linuxkit/moby/build.go
-index 600f5518a..a1e4d283d 100644
---- a/src/cmd/linuxkit/moby/build.go
-+++ b/src/cmd/linuxkit/moby/build.go
-@@ -154,7 +154,7 @@ func Build(m Moby, w io.Writer, opts BuildOpts) error {
- 		// get kernel and initrd tarball and ucode cpio archive from container
- 		log.Infof("Extract kernel image: %s", m.Kernel.ref)
- 		kf := newKernelFilter(iw, m.Kernel.Cmdline, m.Kernel.Binary, m.Kernel.Tar, m.Kernel.UCode, opts.DecompressKernel)
--		err := ImageTar(m.Kernel.ref, "", kf, "", opts)
-+		err := ImageTar(m.Kernel.ref, m.Prefix, kf, "", opts)
- 		if err != nil {
- 			return fmt.Errorf("Failed to extract kernel image and tarball: %v", err)
- 		}
-@@ -171,7 +171,7 @@ func Build(m Moby, w io.Writer, opts BuildOpts) error {
- 	apkTar := newAPKTarWriter(iw)
- 	for _, ii := range m.initRefs {
- 		log.Infof("Process init image: %s", ii)
--		err := ImageTar(ii, "", apkTar, resolvconfSymlink, opts)
-+		err := ImageTar(ii, m.Prefix, apkTar, resolvconfSymlink, opts)
- 		if err != nil {
- 			return fmt.Errorf("failed to build init tarball from %s: %v", ii, err)
- 		}
+diff --git a/src/cmd/linuxkit/moby/build/build.go b/src/cmd/linuxkit/moby/build/build.go
+index bc01af963..51d90e140 100644
+--- a/src/cmd/linuxkit/moby/build/build.go
++++ b/src/cmd/linuxkit/moby/build/build.go
+@@ -224,7 +224,7 @@ func Build(m moby.Moby, w io.Writer, opts BuildOpts) error {
+ 			// get kernel and initrd tarball and ucode cpio archive from container
+ 			log.Infof("Extract kernel image: %s", m.Kernel.Ref())
+ 			kf := newKernelFilter(kernelRef, iw, m.Kernel.Cmdline, m.Kernel.Binary, m.Kernel.Tar, m.Kernel.UCode, opts.DecompressKernel)
+-			err := ImageTar("kernel", kernelRef, "", kf, "", opts)
++			err := ImageTar("kernel", kernelRef, m.Prefix, kf, "", opts)
+ 			if err != nil {
+ 				return fmt.Errorf("failed to extract kernel image and tarball: %v", err)
+ 			}
+@@ -252,7 +252,7 @@ func Build(m moby.Moby, w io.Writer, opts BuildOpts) error {
+ 			}
+ 		} else {
+ 			log.Infof("Process init image: %s", ii)
+-			err := ImageTar(fmt.Sprintf("init[%d]", i), ii, "", apkTar, resolvconfSymlink, opts)
++			err := ImageTar(fmt.Sprintf("init[%d]", i), ii, m.Prefix, apkTar, resolvconfSymlink, opts)
+ 			if err != nil {
+ 				return fmt.Errorf("failed to build init tarball from %s: %v", ii, err)
+ 			}
 diff --git a/src/cmd/linuxkit/moby/config.go b/src/cmd/linuxkit/moby/config.go
-index ae5cb0268..37e1d0518 100644
+index 179b7abb5..d0fb079b4 100644
 --- a/src/cmd/linuxkit/moby/config.go
 +++ b/src/cmd/linuxkit/moby/config.go
-@@ -22,6 +22,7 @@ import (
+@@ -27,6 +27,7 @@ var nameRE = regexp.MustCompile(`^[a-z0-9_-]*$`)
  type Moby struct {
  	Kernel     KernelConfig `kernel:"cmdline,omitempty" json:"kernel,omitempty"`
  	Init       []string     `init:"cmdline" json:"init"`
@@ -73,7 +73,7 @@ index ae5cb0268..37e1d0518 100644
  	Onboot     []*Image     `yaml:"onboot" json:"onboot"`
  	Onshutdown []*Image     `yaml:"onshutdown" json:"onshutdown"`
  	Services   []*Image     `yaml:"services" json:"services"`
-@@ -312,6 +313,9 @@ func AppendConfig(m0, m1 Moby) (Moby, error) {
+@@ -429,6 +430,9 @@ func AppendConfig(m0, m1 Moby) (Moby, error) {
  	if m1.Kernel.ref != nil {
  		moby.Kernel.ref = m1.Kernel.ref
  	}
@@ -84,10 +84,10 @@ index ae5cb0268..37e1d0518 100644
  	moby.Onboot = append(moby.Onboot, m1.Onboot...)
  	moby.Onshutdown = append(moby.Onshutdown, m1.Onshutdown...)
 diff --git a/src/cmd/linuxkit/moby/schema.go b/src/cmd/linuxkit/moby/schema.go
-index b01cfc1cc..3bb76aad8 100644
+index d8af60ddb..7befd415a 100644
 --- a/src/cmd/linuxkit/moby/schema.go
 +++ b/src/cmd/linuxkit/moby/schema.go
-@@ -321,6 +321,7 @@ var schema = `
+@@ -342,6 +342,7 @@ var schema = `
    "properties": {
      "kernel": { "$ref": "#/definitions/kernel" },
      "init": { "$ref": "#/definitions/strings" },
