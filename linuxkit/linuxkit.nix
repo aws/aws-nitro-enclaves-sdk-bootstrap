@@ -6,13 +6,13 @@
 }:
 pkgs.buildGoModule rec {
   pname = "linuxkit";
-  version = "1.5.0";
+  version = "1.5.2";
 
   src = pkgs.fetchFromGitHub {
     owner = "linuxkit";
     repo = "linuxkit";
     rev = "v${version}";
-    sha256 = "sha256-Tcc2FdZ0h97r1C5BMTVb45HB8AuN/wPD+A8samhaJY8=";
+    sha256 = "sha256-M/M4m/vsvvtSDnNNy8p6x+xpv1QmVzyfPRf/BNBX7zA=";
   };
 
   buildInputs = with pkgs; [
