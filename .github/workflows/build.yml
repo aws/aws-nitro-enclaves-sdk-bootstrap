@@ -1,0 +1,74 @@
+name: build-and-release
+run-name: Blobs build (and release if version tag)
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [ARM64, X64]
+    name: build
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: install nix
+        uses: cachix/install-nix-action@v20
+      - name: build artifacts
+        run: |
+          case "${{ matrix.arch }}" in
+            X64)
+              nix-build --pure -A all
+              ;;
+            ARM64)
+              nix-build -A all --arg pkgs '(import ./nixpkgs.nix { }).pkgsCross.aarch64-multiplatform'
+              ;;
+          esac
+      - name: upload architecture tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.arch }}
+          path: ./result/*
+
+  release:
+    # Only trigger relases on version tags
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Get Changes between Tags
+        id: changes
+        uses: simbo/changes-between-tags-action@v1
+      - name: Put changes into temp file
+        id: changes-file
+        run: |
+          echo "${{ steps.changes.outputs.changes }}" > ${{ github.workspace }}-CHANGELOG.txt
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ${{ github.workspace }}/enclaves-blobs/
+      - name: Install pixz
+        run: sudo apt-get install -y pixz
+      - name: Combine build results
+        run: tar c enclaves-blobs | pixz > enclaves-blobs.txz
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        id: create_release
+        with:
+          draft: false
+          prerelease: false
+          body_path: ${{ github.workspace }}-CHANGELOG.txt
+          generate_release_notes: true
+          make_latest: true
+          files: enclaves-blobs.txz
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
