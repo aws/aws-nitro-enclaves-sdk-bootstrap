@@ -1,0 +1,151 @@
+From 743e4685e7d2429022eaa01f0b2776482f1d6276 Mon Sep 17 00:00:00 2001
+From: Alexander Graf <graf@amazon.com>
+Date: Fri, 15 Nov 2024 09:26:16 +0000
+Subject: [PATCH] vsock/virtio: Remove queued_replies pushback logic
+
+Ever since the introduction of the virtio vsock driver, it included
+pushback logic that blocks it from taking any new RX packets until the
+TX queue backlog becomes shallower than the virtqueue size.
+
+This logic works fine when you connect a user space application on the
+hypervisor with a virtio-vsock target, because the guest will stop
+receiving data until the host pulled all outstanding data from the VM.
+
+With Nitro Enclaves however, we connect 2 VMs directly via vsock:
+
+  Parent      Enclave
+
+    RX -------- TX
+    TX -------- RX
+
+This means we now have 2 virtio-vsock backends that both have the pushback
+logic. If the parent's TX queue runs full at the same time as the
+Enclave's, both virtio-vsock drivers fall into the pushback path and
+no longer accept RX traffic. However, that RX traffic is TX traffic on
+the other side which blocks that driver from making any forward
+progress. We're now in a deadlock.
+
+To resolve this, let's remove that pushback logic altogether and rely on
+higher levels (like credits) to ensure we do not consume unbounded
+memory.
+
+Fixes: 0ea9e1d3a9e ("VSOCK: Introduce virtio_transport.ko")
+Signed-off-by: Alexander Graf <graf@amazon.com>
+---
+ net/vmw_vsock/virtio_transport.c | 51 ++------------------------------
+ 1 file changed, 2 insertions(+), 49 deletions(-)
+
+diff --git a/net/vmw_vsock/virtio_transport.c b/net/vmw_vsock/virtio_transport.c
+index 64a07acfef12..53e79779886c 100644
+--- a/net/vmw_vsock/virtio_transport.c
++++ b/net/vmw_vsock/virtio_transport.c
+@@ -44,8 +44,6 @@ struct virtio_vsock {
+ 	struct work_struct send_pkt_work;
+ 	struct sk_buff_head send_pkt_queue;
+ 
+-	atomic_t queued_replies;
+-
+ 	/* The following fields are protected by rx_lock.  vqs[VSOCK_VQ_RX]
+ 	 * must be accessed with rx_lock held.
+ 	 */
+@@ -171,17 +169,6 @@ virtio_transport_send_pkt_work(struct work_struct *work)
+ 
+ 		virtio_transport_deliver_tap_pkt(skb);
+ 
+-		if (reply) {
+-			struct virtqueue *rx_vq = vsock->vqs[VSOCK_VQ_RX];
+-			int val;
+-
+-			val = atomic_dec_return(&vsock->queued_replies);
+-
+-			/* Do we now have resources to resume rx processing? */
+-			if (val + 1 == virtqueue_get_vring_size(rx_vq))
+-				restart_rx = true;
+-		}
+-
+ 		added = true;
+ 	}
+ 
+@@ -218,9 +205,6 @@ virtio_transport_send_pkt(struct sk_buff *skb)
+ 		goto out_rcu;
+ 	}
+ 
+-	if (virtio_vsock_skb_reply(skb))
+-		atomic_inc(&vsock->queued_replies);
+-
+ 	virtio_vsock_skb_queue_tail(&vsock->send_pkt_queue, skb);
+ 	queue_work(virtio_vsock_workqueue, &vsock->send_pkt_work);
+ 
+@@ -233,7 +217,7 @@ static int
+ virtio_transport_cancel_pkt(struct vsock_sock *vsk)
+ {
+ 	struct virtio_vsock *vsock;
+-	int cnt = 0, ret;
++	int ret;
+ 
+ 	rcu_read_lock();
+ 	vsock = rcu_dereference(the_virtio_vsock);
+@@ -242,17 +226,7 @@ virtio_transport_cancel_pkt(struct vsock_sock *vsk)
+ 		goto out_rcu;
+ 	}
+ 
+-	cnt = virtio_transport_purge_skbs(vsk, &vsock->send_pkt_queue);
+-
+-	if (cnt) {
+-		struct virtqueue *rx_vq = vsock->vqs[VSOCK_VQ_RX];
+-		int new_cnt;
+-
+-		new_cnt = atomic_sub_return(cnt, &vsock->queued_replies);
+-		if (new_cnt + cnt >= virtqueue_get_vring_size(rx_vq) &&
+-		    new_cnt < virtqueue_get_vring_size(rx_vq))
+-			queue_work(virtio_vsock_workqueue, &vsock->rx_work);
+-	}
++	virtio_transport_purge_skbs(vsk, &vsock->send_pkt_queue);
+ 
+ 	ret = 0;
+ 
+@@ -323,18 +297,6 @@ static void virtio_transport_tx_work(struct work_struct *work)
+ 		queue_work(virtio_vsock_workqueue, &vsock->send_pkt_work);
+ }
+ 
+-/* Is there space left for replies to rx packets? */
+-static bool virtio_transport_more_replies(struct virtio_vsock *vsock)
+-{
+-	struct virtqueue *vq = vsock->vqs[VSOCK_VQ_RX];
+-	int val;
+-
+-	smp_rmb(); /* paired with atomic_inc() and atomic_dec_return() */
+-	val = atomic_read(&vsock->queued_replies);
+-
+-	return val < virtqueue_get_vring_size(vq);
+-}
+-
+ /* event_lock must be held */
+ static int virtio_vsock_event_fill_one(struct virtio_vsock *vsock,
+ 				       struct virtio_vsock_event *event)
+@@ -581,14 +543,6 @@ static void virtio_transport_rx_work(struct work_struct *work)
+ 			struct sk_buff *skb;
+ 			unsigned int len;
+ 
+-			if (!virtio_transport_more_replies(vsock)) {
+-				/* Stop rx until the device processes already
+-				 * pending replies.  Leave rx virtqueue
+-				 * callbacks disabled.
+-				 */
+-				goto out;
+-			}
+-
+ 			skb = virtqueue_get_buf(vq, &len);
+ 			if (!skb)
+ 				break;
+@@ -735,7 +689,6 @@ static int virtio_vsock_probe(struct virtio_device *vdev)
+ 
+ 	vsock->rx_buf_nr = 0;
+ 	vsock->rx_buf_max_nr = 0;
+-	atomic_set(&vsock->queued_replies, 0);
+ 
+ 	mutex_init(&vsock->tx_lock);
+ 	mutex_init(&vsock->rx_lock);
+-- 
+2.40.1
+

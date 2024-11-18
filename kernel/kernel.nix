@@ -65,6 +65,10 @@ pkgs.stdenv.mkDerivation rec {
     # This one can be dropped with linux >= v6.8 as it is included
     # in upstream linux kernels starting with v6.8
     ./nsm.patch
+    # Fixes an issue where virtio-vsock goes into a deadlock between
+    # parent and enclave. Can be removed once it's in upstream stable
+    # and we rebased.
+    ./0001-vsock-virtio-Remove-queued_replies-pushback-logic.patch
   ];
 
   configurePhase = ''
