@@ -65,6 +65,7 @@ pkgs.stdenv.mkDerivation rec {
     # This one can be dropped with linux >= v6.8 as it is included
     # in upstream linux kernels starting with v6.8
     ./nsm.patch
+    ./virtio.patch
   ];
 
   configurePhase = ''
