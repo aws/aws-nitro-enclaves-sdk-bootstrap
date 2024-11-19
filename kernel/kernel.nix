@@ -78,7 +78,9 @@ pkgs.stdenv.mkDerivation rec {
     export KBUILD_BUILD_TIMESTAMP="$(date -u -d @$SOURCE_DATE_EPOCH)"
     export KBUILD_BUILD_USER="nixbuild"
     export KBUILD_BUILD_HOST="nixbuilder"
-    make olddefconfig ${kern_image} modules -j "$NIX_BUILD_CORES"
+    make olddefconfig ${kern_image} modules -j "$NIX_BUILD_CORES" \
+      ARCH="${kern_arch}" HOSTCC="$CC_FOR_BUILD" HOSTCXX="$CXX_FOR_BUILD" HOSTAR="$AR_FOR_BUILD" HOSTLD="$LD_FOR_BUILD" \
+      CC="$CC" LD="$LD" OBJCOPY="$OBJCOPY" OBJDUMP="$OBJDUMP" READELF="$READELF" STRIP="$STRIP"
   '';
 
   installPhase = ''
