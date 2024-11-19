@@ -34,12 +34,11 @@ pkgs.stdenv.mkDerivation rec {
   version = "6.6.62";
 
   depsBuildBuild = with pkgs.pkgsBuildBuild; [
-    gcc
+    stdenv.cc
   ];
 
   nativeBuildInputs = with pkgs.buildPackages; [
     git
-    gcc
     flex
     bison
     elfutils

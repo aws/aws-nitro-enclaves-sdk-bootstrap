@@ -3,11 +3,11 @@ let
   arch = pkgs.stdenv.hostPlatform.uname.processor;
 in
 rec {
-  init = pkgs.callPackage ./init/init.nix { };
+  init = pkgs.pkgsStatic.callPackage ./init/init.nix { };
 
   kernel = pkgs.callPackage ./kernel/kernel.nix { };
 
-  linuxkit = pkgs.callPackage ./linuxkit/linuxkit.nix { };
+  linuxkit = pkgs.pkgsStatic.callPackage ./linuxkit/linuxkit.nix { };
 
 
   all = pkgs.runCommandNoCC "enclaves-blobs-${arch}" { } ''

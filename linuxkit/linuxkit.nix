@@ -10,10 +10,6 @@ pkgs.buildGoModule rec {
     sha256 = "sha256-M/M4m/vsvvtSDnNNy8p6x+xpv1QmVzyfPRf/BNBX7zA=";
   };
 
-  buildInputs = with pkgs; [
-    musl
-  ];
-
   nativeCheckInputs = with pkgs.buildPackages; [
     git
   ];
@@ -27,7 +23,6 @@ pkgs.buildGoModule rec {
     "-w"
     "-X github.com/linuxkit/linuxkit/src/cmd/linuxkit/version.Version=${version}+"
     "-linkmode external"
-    "-extldflags '-static -L${pkgs.musl}/lib'"
     "--buildmode pie"
   ];
 
