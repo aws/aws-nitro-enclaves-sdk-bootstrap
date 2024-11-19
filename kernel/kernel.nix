@@ -33,7 +33,11 @@ pkgs.stdenv.mkDerivation rec {
   pname = "nitro-enclaves-kernel";
   version = "6.6.38";
 
-  nativeBuildInputs = with pkgs; [
+  depsBuildBuild = with pkgs.pkgsBuildBuild; [
+    gcc
+  ];
+
+  nativeBuildInputs = with pkgs.buildPackages; [
     git
     gcc
     flex

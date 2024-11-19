@@ -14,7 +14,7 @@ pkgs.buildGoModule rec {
     musl
   ];
 
-  nativeCheckInputs = with pkgs; [
+  nativeCheckInputs = with pkgs.buildPackages; [
     git
   ];
 
