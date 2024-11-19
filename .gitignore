@@ -1,4 +1,6 @@
 build
 blobs
+result
+result-*
 *.o
 *.ko
