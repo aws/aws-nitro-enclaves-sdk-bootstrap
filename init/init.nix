@@ -2,16 +2,19 @@
 pkgs.stdenv.mkDerivation rec {
   name = "nitro-enclaves-init";
 
-  nativeBuildInputs = with pkgs; [
+  nativeBuildInputs = with pkgs.buildPackages; [
     gcc
+  ];
+
+  buildInputs = with pkgs; [
     glibc.static
   ];
 
   src = ./.;
 
   buildPhase = ''
-    gcc -Wall -Wextra -Werror -O2 -o init init.c -static -static-libgcc -flto
-    strip --strip-all init
+    ${pkgs.stdenv.cc.targetPrefix}gcc -Wall -Wextra -Werror -O2 -o init init.c -static -static-libgcc -flto
+    ${pkgs.stdenv.cc.targetPrefix}strip --strip-all init
   '';
 
   installPhase = ''
