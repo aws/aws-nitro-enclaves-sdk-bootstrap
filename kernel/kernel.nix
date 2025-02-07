@@ -28,6 +28,15 @@ let
     else
       abort "Unsupported architecture '${arch}'"
     );
+  
+  cmdline_file = (
+    if arch == "aarch64" then
+      ./cmdline/aarch64.cmdline
+    else if arch == "x86_64" then
+      ./cmdline/x86_64.cmdline
+    else
+      abort "Unsupported architecture '${arch}'"
+    );
 in
 pkgs.stdenv.mkDerivation rec {
   pname = "nitro-enclaves-kernel";
@@ -88,6 +97,7 @@ pkgs.stdenv.mkDerivation rec {
     cp arch/${kern_arch}/boot/${kern_image} $out/
     cp drivers/misc/nsm.ko $out/
     cp .config $out/${kern_image}.config
+    cp ${cmdline_file} $out/cmdline
   '';
 
   # The Nitro Enclaves loader on aarch64 loads the target image at the image provided target address.
