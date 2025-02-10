@@ -1,0 +1,42 @@
+name: Upload Release Assets to S3
+run-name: Upload assets when release is published to S3
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload-to-s3:
+    strategy:
+      matrix:
+        include:
+          - arch: X64
+            s3_path: amd64
+            top_lvl_folder: x86_64
+          - arch: ARM64
+            s3_path: aarch64
+            top_lvl_folder: aarch64
+    
+    name: Upload ${{ matrix.arch }} to S3
+    runs-on: ubuntu-latest
+    permissions: write-all
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq pixz
+      - name: Download and Extract Release Asset
+        run: | 
+          ASSET_URL=$(curl -s ${{ github.event.release.assets_url }} | jq -r '.[].browser_download_url' | grep 'enclaves-blobs.txz')
+          curl -L -o enclaves-blobs.txz $ASSET_URL
+          mkdir -p artifacts
+          tar xf enclaves-blobs.txz -C artifacts
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      
+      - name: Sync artifacts to S3
+        run: aws s3 sync artifacts/enclaves-blobs/build-${{ matrix.arch }}/${{matrix.top_lvl_folder}} s3://${{ secrets.AWS_S3_BUCKET }}/${{ matrix.s3_path }}/enclave-blobs-default/
