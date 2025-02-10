@@ -1,0 +1,36 @@
+name: PR Build
+run-name: PR Build for both architectures
+
+on:
+  pull_request:
+    
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: [ARM64, X64]
+    name: build
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: install nix
+        uses: cachix/install-nix-action@v20
+      - name: build artifacts
+        run: |
+          case "${{ matrix.arch }}" in
+            X64)
+              nix-build --pure -A all
+              ;;
+            ARM64)
+              nix-build -A all --arg pkgs '(import ./nixpkgs.nix { }).pkgsCross.aarch64-multiplatform'
+              ;;
+          esac
+      - name: upload architecture tarball
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.arch }}
+          path: ./result/*
