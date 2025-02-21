@@ -40,7 +40,7 @@ let
 in
 pkgs.stdenv.mkDerivation rec {
   pname = "nitro-enclaves-kernel";
-  version = "6.6.62";
+  version = "6.6.79";
 
   depsBuildBuild = with pkgs.pkgsBuildBuild; [
     stdenv.cc
@@ -61,7 +61,7 @@ pkgs.stdenv.mkDerivation rec {
     owner = "gregkh";
     repo = "linux";
     rev = "v${version}";
-    sha256 = "sha256-oWuFnRkeB6s+5C2L2pD2Ef4GXdFFsodJLbpPDmQm1sY=";
+    sha256 = "sha256-AVmLqMKWNPsrHYgub12HPSVyAzsM+H92KrbnjeYI2BY=";
   };
 
   files = [
