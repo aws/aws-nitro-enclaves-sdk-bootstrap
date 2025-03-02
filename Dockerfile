@@ -1,6 +1,5 @@
 FROM nixos/nix:2.21.4 AS build
 ARG TARGET=all
-ENV TARGET=${TARGET}
 
 RUN mkdir /build
 ADD ./ /build/
